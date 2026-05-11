@@ -1,0 +1,122 @@
+.Dd May 11, 2026
+.Dt RSYNCP 1
+.Os
+.Sh NAME
+.Nm rsyncp
+.Nd ETA wrapper for rsync
+.Sh SYNOPSIS
+.Nm rsyncp
+.Op Fl p Ar prefix
+.Op Fl s Ar suffix
+.Op Fl x Ar flag
+.Fl -
+.Op Ar rsync_arg_1 ... rsync_arg_2
+.Ar src ...
+.Op Ar dest
+.Sh DESCRIPTION
+.Nm
+wraps
+.Nm rsync ,
+displaying an estimated time to completion and percentage progress for
+repeated
+.Nm rsync
+invocations.
+It it remembers the previous run's elapsed time and total files and
+reuses those on the next run.
+On the first run, when no such information is available, it prints out the
+number of files
+.Nm rsync
+has found so far, so you know
+.Nm rsync
+is running.
+.Pp
+In general, to use
+.Nm
+you need only change:
+.Bd -literal -offset indent
+rsync -arg1 -arg2 src1 src2 dst
+.Ed
+.Pp
+to:
+.Bd -literal -offset indent
+rsyncp -- -arg1 -arg2 src1 src2 dst
+.Ed
+.Pp
+The arguments to the right of the
+.Fl -
+are used to form a
+.Dq cookie
+that identifies this command.
+If you use multiple different
+.Nm rsync
+invocations,
+.Nm
+treats them distinctly, giving appropriate ETAs for each.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds
+.It Fl p Ar prefix
+is a prefix string printed on the left-hand side of the terminal.
+.It Fl s Ar suffix
+is a suffix string printed on the left-hand side of the terminal.
+.It Fl x Ar flag
+takes a string (including
+.Ql -
+and
+.Ql --
+prefixes) and excludes it from the cookie calculated from the
+.Nm rsync
+arguments to the right of the
+.Fl - .
+If, for example, you pass
+.Fl -exclude-from=/random/path/to
+and don't want the ever-changing random path to confuse the cookie, then
+pass:
+.Fl x
+.Qq --exclude-from
+to
+.Nm .
+Note: this matches this against both plain
+.Fl -exclude-from
+and
+.Fl -exclude-from=...
+.El
+.Pp
+When
+.Nm
+calls
+.Nm rsync
+it will add
+.Fl -info=progress2
+as the first argument to
+.Nm rsync
+automatically.
+.Sh STATE STORAGE
+.Nm
+stores state in:
+.Bd -literal -offset indent
+${XDG_STATE_HOME:-$HOME/.local/state}/rsyncp/
+.Ed
+.Pp
+The state file name is a hash of the
+.Nm rsync
+arguments, after any
+.Fl x
+flags have been excluded.
+Removing the state makes
+.Nm
+forget all previous runs.
+.Sh LIMITATIONS
+.Nm
+estimates progress from the number of files
+.Nm rsync
+reports it has to check.
+This means that the ETA is only accurate when repeated invocations have similar
+file counts and similar per-file checking costs.
+.Sh SEE ALSO
+.Nm rsync
+.Sh AUTHORS
+.An -nosplit
+.Nm
+was written by
+.An Laurence Tratt Aq Mt https://tratt.net/laurie/ .
