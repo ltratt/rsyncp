@@ -162,7 +162,7 @@ tput civis 2> /dev/null || :
       print current_total > state_file
       print elapsed + 1 > state_file
     }
-    printf "\r\033[K"
+    printf ""
   }
 '
 
