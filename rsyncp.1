@@ -6,13 +6,15 @@
 .Nd ETA wrapper for rsync
 .Sh SYNOPSIS
 .Nm rsyncp
-.Op Fl p Ar prefix
-.Op Fl s Ar suffix
-.Op Fl x Ar flag
+.Oo
+.Fl c Ar cookie |
+.Fl x Ar str
+.Op Fl x Ar str \&...
+.Oc
+.Op Fl i
 .Fl -
-.Op Ar rsync_arg_1 ... rsync_arg_2
-.Ar src ...
-.Op Ar dest
+.Ar rsync_arg_1
+.Op Ar ... rsync_arg_n
 .Sh DESCRIPTION
 .Nm
 wraps
@@ -21,7 +23,7 @@ displaying an estimated time to completion and percentage progress for
 repeated
 .Nm rsync
 invocations.
-It it remembers the previous run's elapsed time and total files and
+It remembers the previous run's elapsed time and total files and
 reuses those on the next run.
 On the first run, when no such information is available, it prints out the
 number of files
@@ -55,11 +57,17 @@ treats them distinctly, giving appropriate ETAs for each.
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
-.It Fl p Ar prefix
-is a prefix string printed on the left-hand side of the terminal.
-.It Fl s Ar suffix
-is a suffix string printed on the left-hand side of the terminal.
-.It Fl x Ar flag
+.It Fl c Ar cookie
+overrides the default cookie creation.
+It is guaranteed that user defined cookies and
+.Nm 's
+default cookies cannot collide.
+.Nm .
+Mutually exclusive with
+.Ar -x .
+.It Fl i
+Prints version number information to stdout and immediately exits.
+.It Fl x Ar str
 takes a string (including
 .Ql -
 and
@@ -73,24 +81,22 @@ If, for example, you pass
 and don't want the ever-changing random path to confuse the cookie, then
 pass:
 .Fl x
-.Qq --exclude-from
+.Qq --exclude-from=/random/path/to
 to
 .Nm .
-Note: this matches this against both plain
-.Fl -exclude-from
-and
-.Fl -exclude-from=...
+Mutually exclusive with
+.Ar -c .
 .El
 .Pp
 When
 .Nm
 calls
 .Nm rsync
-it will add
-.Fl -info=progress2
-as the first argument to
+it will add several arguments to the call: the user will be warned if any
+arguments they pass to
 .Nm rsync
-automatically.
+will collide with those passed by
+.Nm .
 .Sh STATE STORAGE
 .Nm
 stores state in:
