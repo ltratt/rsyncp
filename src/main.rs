@@ -13,7 +13,7 @@ use crate::{
     plat::{POLLHUP, POLLIN, PollFd, SIGINT, poll, set_fd_nonblocking, signal},
 };
 use std::{
-    cmp, env,
+    env,
     error::Error,
     ffi::c_int,
     fs,
@@ -123,12 +123,20 @@ impl Runner {
                 child.wait().ok();
                 return Err("SIGINT".into());
             }
-            let last_disp_diff = last_disp_update
-                .map(|x| Instant::now().saturating_duration_since(x))
-                .unwrap_or_else(|| Duration::from_secs(0));
-
-            let timeout =
-                c_int::try_from(cmp::min(last_disp_diff, MIN_DISPLAY_UPDATE).as_millis()).unwrap();
+            let timeout = c_int::try_from(
+                MIN_DISPLAY_UPDATE
+                    .saturating_sub(
+                        last_disp_update
+                            .map(|x| {
+                                Instant::now()
+                                    .checked_duration_since(x)
+                                    .unwrap_or_else(|| Duration::from_secs(0))
+                            })
+                            .unwrap_or_else(|| Duration::from_secs(0)),
+                    )
+                    .as_millis(),
+            )
+            .unwrap_or(0);
             let mut pollfd = PollFd {
                 fd: stdout_fd,
                 events: POLLIN | POLLHUP,
@@ -190,7 +198,11 @@ impl Runner {
             }
 
             if self.cfg.show_progress
-                && (last_disp_diff >= MIN_DISPLAY_UPDATE || last_disp_update.is_none())
+                && (last_disp_update.is_none()
+                    || last_disp_update
+                        .and_then(|x| x.checked_add(MIN_DISPLAY_UPDATE))
+                        .unwrap_or_else(|| Instant::now())
+                        <= Instant::now())
             {
                 let elapsed = Instant::now().saturating_duration_since(startt);
                 let mut etas = None;
