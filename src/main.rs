@@ -399,17 +399,24 @@ extern "C" fn handle_sigint(_: c_int) {
 
 fn main() {
     let cfg = Config::new(env::args());
-    print!("\x1b[?25l");
+    if cfg.show_progress {
+        print!("\x1b[?25l");
+    }
     unsafe {
         signal(SIGINT, handle_sigint);
     }
+    let show_progress = cfg.show_progress;
     let runner = Runner::new(cfg);
     if let Err(e) = runner.run() {
         eprintln!("rsyncp error: {e}");
-        print!("\x1b[?25h");
+        if show_progress {
+            print!("\x1b[?25h");
+        }
         exit(1);
     }
-    print!("\x1b[?25h");
+    if show_progress {
+        print!("\x1b[?25h");
+    }
 }
 
 #[cfg(test)]
