@@ -398,11 +398,11 @@ extern "C" fn handle_sigint(_: c_int) {
 }
 
 fn main() {
+    let cfg = Config::new(env::args());
     print!("\x1b[?25l");
     unsafe {
         signal(SIGINT, handle_sigint);
     }
-    let cfg = Config::new(env::args());
     let runner = Runner::new(cfg);
     if let Err(e) = runner.run() {
         eprintln!("rsyncp error: {e}");
