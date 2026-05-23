@@ -34,6 +34,10 @@ impl Config {
                         usage(1);
                     }
                     let Some(v) = args.next() else { usage(1) };
+                    if v.is_empty() || v.contains('/') || v.contains('\0') || v == "." || v == ".."
+                    {
+                        error("Invalid cookie");
+                    }
                     cookie = Some(format!("u{v}"));
                 }
                 "-h" => usage(0),
@@ -179,6 +183,36 @@ mod test {
     #[should_panic(expected = "usage: rsyncp")]
     fn args_unknown() {
         Config::new(["", "-unknown"].map(|x| x.to_owned()).into_iter());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid cookie")]
+    fn args_c_invalid1() {
+        Config::new(["", "-c", ""].map(|x| x.to_owned()).into_iter());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid cookie")]
+    fn args_c_invalid2() {
+        Config::new(["", "-c", "a/b"].map(|x| x.to_owned()).into_iter());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid cookie")]
+    fn args_c_invalid3() {
+        Config::new(["", "-c", "a\0b"].map(|x| x.to_owned()).into_iter());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid cookie")]
+    fn args_c_invalid4() {
+        Config::new(["", "-c", "."].map(|x| x.to_owned()).into_iter());
+    }
+
+    #[test]
+    #[should_panic(expected = "Invalid cookie")]
+    fn args_c_invalid5() {
+        Config::new(["", "-c", ".."].map(|x| x.to_owned()).into_iter());
     }
 
     #[test]
