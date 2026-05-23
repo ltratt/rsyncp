@@ -201,7 +201,7 @@ impl Runner {
                 && (last_disp_update.is_none()
                     || last_disp_update
                         .and_then(|x| x.checked_add(MIN_DISPLAY_UPDATE))
-                        .unwrap_or_else(|| Instant::now())
+                        .unwrap_or_else(Instant::now)
                         <= Instant::now())
             {
                 let elapsed = Instant::now().saturating_duration_since(startt);
