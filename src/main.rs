@@ -268,6 +268,13 @@ impl Runner {
                     };
                     let clr = if *is_del { TERM_RED } else { TERM_GREEN };
                     let rhsw = self.termw - left.width() - path.width() - 1;
+                    // If `path` contains control codes, don't try and be clever: simply don't
+                    // display it.
+                    let path = if path.chars().all(|x| !x.is_control()) {
+                        path
+                    } else {
+                        ""
+                    };
                     io::stdout()
                         .write_all(
                             format!("\r{clr}{left}{path}{TERM_RESET} {etas:>rhsw$}\x1b[K")
