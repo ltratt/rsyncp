@@ -117,6 +117,8 @@ impl Runner {
         let mut last_path_disp = None;
         let mut paths_known = None; // The total number of paths seen in this execution.
         let mut paths_remainder = None;
+        let mut sent = 0;
+        let mut deleted = 0;
         'a: loop {
             if SIGINT_RECEIVED.load(Ordering::Relaxed) {
                 child.kill().ok();
@@ -163,7 +165,8 @@ impl Runner {
                         }
                     }
                     Ok(i) => {
-                        let (seen_name, seen_progress) = self.parse_rsync(&buf[..i]);
+                        let (seen_name, seen_progress) =
+                            self.parse_rsync(&buf[..i], &mut sent, &mut deleted);
 
                         if let Some(line) = seen_name
                             && let Some(l) = line.find(' ')
@@ -205,7 +208,8 @@ impl Runner {
                         <= Instant::now())
             {
                 let elapsed = Instant::now().saturating_duration_since(startt);
-                let mut etas = None;
+                // The string being constructed for the RHS of terminal output.
+                let mut rhs = None;
                 if let Some(prev_paths) = self.prev_paths {
                     let done = paths_known
                         .unwrap_or(0)
@@ -215,18 +219,21 @@ impl Runner {
                         && let Some(ref mut eta) = eta
                         && let Some(x) = eta.update(done, paths, elapsed)
                     {
-                        etas = Some(eta::eta_string(x));
+                        rhs = Some(eta::eta_string(x));
                     }
                 }
-                let etas = etas.unwrap_or_else(|| {
-                    if let Some(x) = paths_known {
-                        format!("({x} files) ??:??")
-                    } else {
-                        "??:??".to_owned()
-                    }
-                });
-
-                let etasw = etas.width();
+                let rhs = rhs.unwrap_or_else(|| "??:??".to_owned());
+                let sent = num_suffix_fmt(sent);
+                let deleted = num_suffix_fmt(deleted);
+                // Calculate `rhsw` before we add control codes!
+                let rhsw = rhs.width()
+                    + sent.width().max(4)
+                    + 2 * OUTPUT_SEP.width()
+                    + deleted.width().max(4)
+                    + 2 * OUTPUT_SEP.width();
+                let rhs = format!(
+                    "{TERM_GREEN}{sent:>4}{TERM_RESET}{OUTPUT_SEP}{OUTPUT_SEP}{TERM_RED}{deleted:>4}{TERM_RESET}{OUTPUT_SEP}{OUTPUT_SEP}{rhs}"
+                );
                 if let Some((t, ref _p, _is_del)) = last_path_disp {
                     let elapsed = Instant::now().saturating_duration_since(t);
                     if elapsed > MIN_PATH_DISPLAY_FOR
@@ -248,26 +255,25 @@ impl Runner {
                 if let Some((_, last_path, is_del)) = &last_path_disp {
                     let last_pathw = last_path.width();
                     let sepw = OUTPUT_SEP.width();
-                    let (left, path) = if last_pathw + sepw + etasw < self.termw {
+                    let (lhs, path) = if last_pathw + sepw + rhsw < self.termw {
                         ("", last_path.as_str())
                     } else {
                         let path_too_longw = PATH_TOO_LONG.width();
-                        if path_too_longw + 1 + sepw + etasw < self.termw {
+                        if path_too_longw + 1 + sepw + rhsw < self.termw {
                             (
                                 PATH_TOO_LONG,
                                 &last_path[last_path
                                     .char_indices()
                                     .rev()
-                                    .nth(self.termw - etasw - sepw - 1 - path_too_longw)
+                                    .nth(self.termw - rhsw - sepw - 1 - path_too_longw)
                                     .unwrap()
                                     .0..],
                             )
                         } else {
-                            ("", etas.as_str())
+                            ("", rhs.as_str())
                         }
                     };
                     let clr = if *is_del { TERM_RED } else { TERM_GREEN };
-                    let rhsw = self.termw - left.width() - path.width() - 1;
                     // If `path` contains control codes, don't try and be clever: simply don't
                     // display it.
                     let path = if path.chars().all(|x| !x.is_control()) {
@@ -275,16 +281,23 @@ impl Runner {
                     } else {
                         ""
                     };
+                    let rhspad = self.termw - lhs.width() - path.width() - 1 - rhsw;
                     io::stdout()
                         .write_all(
-                            format!("\r{clr}{left}{path}{TERM_RESET} {etas:>rhsw$}\x1b[K")
-                                .as_bytes(),
+                            format!(
+                                "\r{clr}{lhs}{path}{TERM_RESET} {:rhspad$}{rhs}\x1b[K",
+                                "",
+                                rhspad = rhspad
+                            )
+                            .as_bytes(),
                         )
                         .ok();
                 } else {
-                    let rhsw = self.termw;
+                    let rhspad = self.termw - rhsw;
                     io::stdout()
-                        .write_all(format!("\r{etas:>rhsw$}\x1b[K").as_bytes())
+                        .write_all(
+                            format!("\r{:rhspad$}{rhs}\x1b[K", "", rhspad = rhspad).as_bytes(),
+                        )
                         .ok();
                 }
                 io::stdout().flush().ok();
@@ -353,18 +366,29 @@ impl Runner {
         }
     }
 
-    fn parse_rsync<'a>(&self, buf: &'a [u8]) -> (Option<&'a str>, Option<&'a str>) {
+    fn parse_rsync<'a>(
+        &self,
+        buf: &'a [u8],
+        sent: &mut u64,
+        deleted: &mut u64,
+    ) -> (Option<&'a str>, Option<&'a str>) {
         let mut last_name = None;
         let mut last_progress = None;
         let mut i = buf.len();
         let mut last_end = i;
-        while i > 0 && (last_name.is_none() || last_progress.is_none()) {
+        loop {
             i -= 1;
-            if buf[i] == b'\n' || buf[i] == b'\r' {
-                if i + 1 < last_end
-                    && let Ok(line) = str::from_utf8(&buf[i + 1..last_end])
+            if i == 0 || buf[i] == b'\n' || buf[i] == b'\r' {
+                let start = if i == 0 { 0 } else { i + 1 };
+                if start < last_end
+                    && let Ok(line) = str::from_utf8(&buf[start..last_end])
                 {
                     if line.starts_with("send") || line.starts_with("del.") {
+                        if line.starts_with("send") {
+                            *sent += 1
+                        } else {
+                            *deleted += 1
+                        };
                         if last_name.is_none() {
                             last_name = Some(line);
                         }
@@ -377,6 +401,9 @@ impl Runner {
                     i -= 1;
                 }
                 last_end = i;
+            }
+            if i == 0 {
+                break;
             }
         }
 
@@ -398,6 +425,28 @@ fn slashed_digits(s: &str) -> Option<(u64, u64)> {
         return Some((before, after));
     }
     None
+}
+
+fn num_suffix_fmt(n: u64) -> String {
+    let (unit, suffix): (u64, &str) = match n {
+        0..=999 => return n.to_string(),
+        1_000..=999_999 => (1_000, "K"),
+        1_000_000..=999_999_999 => (1_000_000, "M"),
+        _ => (1_000_000_000, "B"),
+    };
+
+    let whole = n / unit;
+    if whole >= 10 {
+        format!("{whole}{suffix}")
+    } else {
+        let decimal = (n % unit) / (unit / 10);
+
+        if decimal == 0 {
+            format!("{whole}{suffix}")
+        } else {
+            format!("{whole}.{decimal}{suffix}")
+        }
+    }
 }
 
 extern "C" fn handle_sigint(_: c_int) {
@@ -444,5 +493,49 @@ mod test {
         assert_eq!(slashed_digits("1234/5678"), Some((1234, 5678)));
         assert_eq!(slashed_digits("1234a/5678"), None);
         assert_eq!(slashed_digits("1234/5678a"), Some((1234, 5678)));
+    }
+
+    #[test]
+    fn test_num_suffix_fmt() {
+        let cases = [
+            (0, "0"),
+            (999, "999"),
+            (1_000, "1K"),
+            (1_099, "1K"),
+            (1_100, "1.1K"),
+            (1_199, "1.1K"),
+            (1_999, "1.9K"),
+            (2_000, "2K"),
+            (9_999, "9.9K"),
+            (10_000, "10K"),
+            (10_999, "10K"),
+            (99_999, "99K"),
+            (100_000, "100K"),
+            (999_999, "999K"),
+            (1_000_000, "1M"),
+            (1_000_001, "1M"),
+            (1_099_999, "1M"),
+            (1_100_000, "1.1M"),
+            (1_999_999, "1.9M"),
+            (9_999_999, "9.9M"),
+            (10_000_000, "10M"),
+            (99_999_999, "99M"),
+            (100_000_000, "100M"),
+            (999_999_999, "999M"),
+            // B range; may exceed 4 chars
+            (1_000_000_000, "1B"),
+            (1_000_000_001, "1B"),
+            (1_100_000_000, "1.1B"),
+            (1_999_999_999, "1.9B"),
+            (9_999_999_999, "9.9B"),
+            (10_000_000_000, "10B"),
+            (999_999_999_999, "999B"),
+            (1_000_000_000_000, "1000B"),
+            (u64::MAX, "18446744073B"),
+        ];
+
+        for &(input, expected) in &cases {
+            assert_eq!(num_suffix_fmt(input), expected, "input: {input}");
+        }
     }
 }
