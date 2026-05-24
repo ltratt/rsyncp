@@ -54,6 +54,10 @@ const TERM_GREEN: &str = "\x1b[32m";
 const TERM_RED: &str = "\x1b[31m";
 const TERM_RESET: &str = "\x1b[0m";
 
+/// If there is no data from the previous run, show a little animation: the strings below will
+/// rotate through in sequence.
+const UNKNOWN_SEQ: &[&str] = &["||:||", "//://", "--:--", "\\\\:\\\\"];
+
 static SIGINT_RECEIVED: AtomicBool = AtomicBool::new(false);
 
 struct Runner {
@@ -119,6 +123,7 @@ impl Runner {
         let mut paths_remainder = None;
         let mut sent = 0;
         let mut deleted = 0;
+        let mut unknown_seqi = 0;
         'a: loop {
             if SIGINT_RECEIVED.load(Ordering::Relaxed) {
                 child.kill().ok();
@@ -222,7 +227,16 @@ impl Runner {
                         rhs = Some(eta::eta_string(x));
                     }
                 }
-                let rhs = rhs.unwrap_or_else(|| "??:??".to_owned());
+                let rhs = match rhs {
+                    Some(x) => x,
+                    None => {
+                        if unknown_seqi == UNKNOWN_SEQ.len() {
+                            unknown_seqi = 0;
+                        }
+                        unknown_seqi += 1;
+                        UNKNOWN_SEQ[unknown_seqi - 1].to_owned()
+                    }
+                };
                 let sent = num_suffix_fmt(sent);
                 let deleted = num_suffix_fmt(deleted);
                 // Calculate `rhsw` before we add control codes!
