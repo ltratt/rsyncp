@@ -56,7 +56,7 @@ const TERM_RESET: &str = "\x1b[0m";
 
 /// If there is no data from the previous run, show a little animation: the strings below will
 /// rotate through in sequence.
-const UNKNOWN_SEQ: &[&str] = &["||:||", "//://", "--:--", "\\\\:\\\\"];
+const UNKNOWN_SEQ: &[&str] = &[" ||% ||:||", " //% //://", " --% --:--", " \\\\% \\\\:\\\\"];
 
 static SIGINT_RECEIVED: AtomicBool = AtomicBool::new(false);
 
@@ -224,7 +224,11 @@ impl Runner {
                         && let Some(ref mut eta) = eta
                         && let Some(x) = eta.update(done, paths, elapsed)
                     {
-                        rhs = Some(eta::eta_string(x));
+                        rhs = Some(format!(
+                            "{:>3}% {}",
+                            done.saturating_mul(100).div_ceil(prev_paths),
+                            eta::eta_string(x),
+                        ));
                     }
                 }
                 let rhs = match rhs {
