@@ -19,18 +19,18 @@
 .Nm
 wraps
 .Nm rsync ,
-displaying an estimated time to completion and percentage progress for
-repeated
+displaying the percentage of files completed, and an estimate of the
+remaining time, for repeated
 .Nm rsync
 invocations.
-It remembers the previous run's elapsed time and total files and
-reuses those on the next run.
-On the first run, when no such information is available, it prints out the
-number of files
+.Nm
+does this by comparing the current
 .Nm rsync
-has found so far, so you know
-.Nm rsync
-is running.
+run to the previous run.
+By definition, percentages and ETAs only appear from the second run onwards.
+In addition,
+.Nm
+shows the files sent (green) to and deleted on (red) the destination.
 .Pp
 In general, to use
 .Nm
