@@ -1,11 +1,11 @@
 # rsyncp: an ETA wrapper for rsync
 
 `rsync` is a wonderful tool, but does not provide any notion of "how much has
-been done / how much is left"? `rsyncp` does just that, providing ETAs and
-percentage completed for repeated `rsync` invocations: it remembers the
-previous run's elapsed time and total files and reuses those on the next run.
-On the first run, when no such information is available, it prints out the
-number of files `rsync` has found so far, so you know `rsync` is running.
+been done / how much is left"? `rsyncp` does just that, providing the
+percentage completed, ETA, and files sent to (green) / deleted on (red) the
+destination. It does this by comparing the current `rsync` run to the previous
+run. By definition, percentages and ETAs only appear from the second run
+onwards.
 
 In general, to use `rsyncp` you need only change:
 
