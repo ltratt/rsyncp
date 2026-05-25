@@ -63,8 +63,6 @@ static SIGINT_RECEIVED: AtomicBool = AtomicBool::new(false);
 struct Runner {
     cfg: Config,
     termw: usize,
-    /// How many paths were encountered during the previous run?
-    prev_paths: Option<u64>,
 }
 
 impl Runner {
@@ -72,20 +70,20 @@ impl Runner {
         Self {
             cfg,
             termw: usize::from(term_width()),
-            prev_paths: None,
         }
     }
 
-    fn run(mut self) -> Result<(), Box<dyn Error>> {
+    fn run(self) -> Result<(), Box<dyn Error>> {
         let cookie_path = self.cookie_path();
 
         let mut eta = None;
-        if let Some(cookie_path) = &cookie_path
+        // paths_known: the total number of paths we believe we'll see. Note: this value might
+        // change during the run, up or down!
+        let (show_eta, mut paths_known) = if let Some(cookie_path) = &cookie_path
             && let Ok(s) = fs::read(cookie_path)
             && let Ok(s) = str::from_utf8(&s)
             && let Some((prev_paths, prev_elapsed)) = self.parse_cookie(s)
         {
-            self.prev_paths = Some(prev_paths);
             // The longer run is -- based on the previous time at least! -- the larger a smoothing
             // window tends to make sense. The `/100` is an arbitrary figure that will probably
             // need refining.
@@ -96,7 +94,10 @@ impl Runner {
                 prev_paths,
                 Duration::from_secs(prev_elapsed),
             ));
-        }
+            (true, prev_paths)
+        } else {
+            (false, 0)
+        };
 
         let startt = Instant::now();
         let mut child = Command::new("rsync")
@@ -119,8 +120,7 @@ impl Runner {
         let mut last_path_seen = (String::with_capacity(LINE_BUF_SIZE), false); // (path, is_delete)
         let mut last_disp_update = None;
         let mut last_path_disp = None;
-        let mut paths_known = None; // The total number of paths seen in this execution.
-        let mut paths_remainder = None;
+        let mut paths_done = 0;
         let mut sent = 0;
         let mut deleted = 0;
         let mut unknown_seqi = 0;
@@ -194,8 +194,14 @@ impl Runner {
                                 .or_else(|| line.find("to-chk="))
                                 .and_then(|x| slashed_digits(&line[x + 7..]))
                         {
-                            paths_remainder = Some(rem);
-                            paths_known = Some(tot);
+                            paths_done = tot.saturating_sub(rem);
+                            if rem == 0 {
+                                // Once there is nothing remaining, we have an accurate count: this
+                                // might cause paths_known to decrease in value.
+                                paths_known = tot;
+                            } else {
+                                paths_known = paths_known.max(tot);
+                            }
                         }
                     }
                     Err(e)
@@ -215,21 +221,16 @@ impl Runner {
                 let elapsed = Instant::now().saturating_duration_since(startt);
                 // The string being constructed for the RHS of terminal output.
                 let mut rhs = None;
-                if let Some(prev_paths) = self.prev_paths {
-                    let done = paths_known
-                        .unwrap_or(0)
-                        .saturating_sub(paths_remainder.unwrap_or(0));
-                    let paths = prev_paths.max(paths_known.unwrap_or(0));
-                    if paths > 0
-                        && let Some(ref mut eta) = eta
-                        && let Some(x) = eta.update(done, paths, elapsed)
-                    {
-                        rhs = Some(format!(
-                            "{:>3}% {}",
-                            done.saturating_mul(100).div_ceil(prev_paths),
-                            eta::eta_string(x),
-                        ));
-                    }
+                if show_eta
+                    && paths_done > 0
+                    && let Some(ref mut eta) = eta
+                    && let Some(x) = eta.update(paths_done, paths_known, elapsed)
+                {
+                    rhs = Some(format!(
+                        "{:>3}% {}",
+                        paths_done.saturating_mul(100).div_ceil(paths_known),
+                        eta::eta_string(x),
+                    ));
                 }
                 let rhs = match rhs {
                     Some(x) => x,
@@ -323,12 +324,10 @@ impl Runner {
             }
         }
 
-        if let Some(cur_paths) = paths_known {
-            let elapsed = Instant::now().saturating_duration_since(startt);
-            let elapsed = elapsed.as_secs() + u64::from(elapsed.subsec_millis() != 0);
-            if let Some(cookie_path) = cookie_path {
-                fs::write(cookie_path, format!("RSYNCP01\n{cur_paths}\n{elapsed}")).ok();
-            }
+        let elapsed = Instant::now().saturating_duration_since(startt);
+        let elapsed = elapsed.as_secs() + u64::from(elapsed.subsec_millis() != 0);
+        if let Some(cookie_path) = cookie_path {
+            fs::write(cookie_path, format!("RSYNCP01\n{paths_known}\n{elapsed}")).ok();
         }
 
         match child.wait() {
