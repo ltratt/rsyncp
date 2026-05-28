@@ -56,6 +56,7 @@ fn main() {
     let pollhup = get_c_const(&out_dir, "POLLHUP", "#include <poll.h>", "short");
     let pollin = get_c_const(&out_dir, "POLLIN", "#include <poll.h>", "short");
     let sigint = get_c_const(&out_dir, "SIGINT", "#include <signal.h>", "int");
+    let sigwinch = get_c_const(&out_dir, "SIGWINCH", "#include <signal.h>", "int");
     let tiocgwinsz = get_c_const(
         &out_dir,
         "TIOCGWINSZ",
@@ -73,6 +74,7 @@ fn main() {
              pub const POLLHUP: c_short = {pollhup};\n\
              pub const POLLIN: c_short = {pollin};\n\
              pub const SIGINT: c_int = {sigint};\n\
+             pub const SIGWINCH: c_int = {sigwinch};\n\
              pub const TIOCGWINSZ: c_ulong = {tiocgwinsz};\n",
         ),
     )
