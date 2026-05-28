@@ -9,7 +9,7 @@ mod inner {
     include!(concat!(env!("OUT_DIR"), "/plat.rs"));
 }
 
-pub use inner::{F_GETFL, F_SETFL, O_NONBLOCK, POLLHUP, POLLIN, SIGINT, TIOCGWINSZ};
+pub use inner::{F_GETFL, F_SETFL, O_NONBLOCK, POLLHUP, POLLIN, SIGINT, SIGWINCH, TIOCGWINSZ};
 
 #[repr(C)]
 pub struct PollFd {

@@ -10,7 +10,7 @@ mod term_width;
 use crate::{
     config::Config,
     eta::Eta,
-    plat::{POLLHUP, POLLIN, PollFd, SIGINT, poll, set_fd_nonblocking, signal},
+    plat::{POLLHUP, POLLIN, PollFd, SIGINT, SIGWINCH, poll, set_fd_nonblocking, signal},
 };
 use std::{
     env,
@@ -59,6 +59,7 @@ const TERM_RESET: &str = "\x1b[0m";
 const UNKNOWN_SEQ: &[&str] = &[" ||% ||:||", " //% //://", " --% --:--", " \\\\% \\\\:\\\\"];
 
 static SIGINT_RECEIVED: AtomicBool = AtomicBool::new(false);
+static SIGWINCH_RECEIVED: AtomicBool = AtomicBool::new(false);
 
 struct Runner {
     cfg: Config,
@@ -73,7 +74,7 @@ impl Runner {
         }
     }
 
-    fn run(self) -> Result<(), Box<dyn Error>> {
+    fn run(mut self) -> Result<(), Box<dyn Error>> {
         let cookie_path = self.cookie_path();
 
         let mut eta = None;
@@ -269,6 +270,18 @@ impl Runner {
                         last_path_seen.1,
                     ));
                     last_path_seen.0.clear();
+                }
+
+                // We check SIGWINCH just before we output something to screen: this makes it most
+                // likely that we detect the signal "just before" writing.
+                if SIGWINCH_RECEIVED.load(Ordering::Relaxed) {
+                    // Since SIGWINCH is rare, we do a `load` first, and only if it returns `true` do
+                    // we then store `false`. If there is a race condition -- i.e. `SIGWINCH` is
+                    // received between the `load` and the `store` -- we will still find the new term
+                    // size correctly. That means that we don't pay the performance penalty of a CAS in
+                    // the common case, but are correct in the might-seem-like-a-race-condition case.
+                    SIGWINCH_RECEIVED.store(false, Ordering::Relaxed);
+                    self.termw = usize::from(term_width());
                 }
 
                 if let Some((_, last_path, is_del)) = &last_path_disp {
@@ -470,6 +483,10 @@ extern "C" fn handle_sigint(_: c_int) {
     SIGINT_RECEIVED.store(true, Ordering::Relaxed);
 }
 
+extern "C" fn handle_sigwinch(_: c_int) {
+    SIGWINCH_RECEIVED.store(true, Ordering::Relaxed);
+}
+
 fn main() {
     let cfg = Config::new(env::args());
     if cfg.show_progress {
@@ -477,6 +494,7 @@ fn main() {
     }
     unsafe {
         signal(SIGINT, handle_sigint);
+        signal(SIGWINCH, handle_sigwinch);
     }
     let show_progress = cfg.show_progress;
     let runner = Runner::new(cfg);
