@@ -80,7 +80,7 @@ impl Runner {
         let mut eta = None;
         // paths_known: the total number of paths we believe we'll see. Note: this value might
         // change during the run, up or down!
-        let (show_eta, mut paths_known) = if let Some(cookie_path) = &cookie_path
+        let (show_eta, prev_elapsed, mut paths_known) = if let Some(cookie_path) = &cookie_path
             && let Ok(s) = fs::read(cookie_path)
             && let Ok(s) = str::from_utf8(&s)
             && let Some((prev_paths, prev_elapsed)) = self.parse_cookie(s)
@@ -95,9 +95,9 @@ impl Runner {
                 prev_paths,
                 Duration::from_secs(prev_elapsed),
             ));
-            (true, prev_paths)
+            (true, Some(prev_elapsed), prev_paths)
         } else {
-            (false, 0)
+            (false, None, 0)
         };
 
         let startt = Instant::now();
@@ -222,16 +222,30 @@ impl Runner {
                 let elapsed = Instant::now().saturating_duration_since(startt);
                 // The string being constructed for the RHS of terminal output.
                 let mut rhs = None;
-                if show_eta
-                    && paths_done > 0
-                    && let Some(ref mut eta) = eta
-                    && let Some(x) = eta.update(paths_done, paths_known, elapsed)
-                {
-                    rhs = Some(format!(
-                        "{:>3}% {}",
-                        paths_done.saturating_mul(100).div_ceil(paths_known),
-                        eta::eta_string(x),
-                    ));
+                if show_eta {
+                    if paths_done > 0 {
+                        if let Some(ref mut eta) = eta
+                            && let Some(x) = eta.update(paths_done, paths_known, elapsed)
+                        {
+                            rhs = Some(format!(
+                                "{:>3}% {}",
+                                paths_done.saturating_mul(100).div_ceil(paths_known),
+                                eta::eta_string(x),
+                            ));
+                        }
+                    } else if let Some(prev_elapsed) = prev_elapsed {
+                        // Before we've seen paths, we have no rate to calculate an ETA from. We
+                        // cheat a little and forcibly display the previous elapsed time minus
+                        // elapsed. If it takes a long time to see the first path, this might lead
+                        // to a seemingly sane gradual decrease in the ETA followed by a brief
+                        // uptick. There isn't much we can do about that.
+                        rhs = Some(format!(
+                            "   0% {}",
+                            eta::eta_string(
+                                Duration::from_secs(prev_elapsed).saturating_sub(elapsed)
+                            )
+                        ));
+                    }
                 }
                 let rhs = match rhs {
                     Some(x) => x,
