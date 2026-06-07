@@ -11,6 +11,7 @@
 .Fl x Ar str
 .Op Fl x Ar str \&...
 .Oc
+.Op Fl r Ar rsync_name
 .Op Fl i
 .Fl -
 .Ar rsync_arg_1
@@ -67,6 +68,13 @@ Mutually exclusive with
 .Ar -x .
 .It Fl i
 Prints version number information to stdout and immediately exits.
+.It Fl r Ar rsync_name
+specifies the name of the
+.Nm rsync
+program.
+Defaults to
+.Qq rsync
+if not specified.
 .It Fl x Ar str
 takes a string (including
 .Ql -

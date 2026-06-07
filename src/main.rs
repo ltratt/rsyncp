@@ -101,7 +101,7 @@ impl Runner {
         };
 
         let startt = Instant::now();
-        let mut child = Command::new("rsync")
+        let mut child = Command::new(&self.cfg.rsync_name)
             .args([
                 "--info=name,progress2",
                 "--outbuf=line",

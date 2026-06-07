@@ -9,6 +9,7 @@ const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 pub(crate) struct Config {
     pub cookie: String,
+    pub rsync_name: String,
     pub rsync_args: Vec<String>,
     pub show_progress: bool,
 }
@@ -21,6 +22,7 @@ impl Config {
     {
         let mut cookie = None;
         let mut excluded = Vec::new();
+        let mut rsync_name = None;
         let mut rsync_args = Vec::new();
         let _ = args.next();
         while let Some(arg) = args.next() {
@@ -44,6 +46,15 @@ impl Config {
                 "-i" => {
                     println!("rsyncp version {VERSION}");
                     exit(0);
+                }
+                "-r" => {
+                    if rsync_name.is_some() {
+                        usage(1);
+                    }
+                    let Some(v) = args.next() else {
+                        usage(1);
+                    };
+                    rsync_name = Some(v);
                 }
                 "-x" => {
                     if cookie.is_some() {
@@ -94,6 +105,7 @@ impl Config {
         Self {
             cookie,
             rsync_args,
+            rsync_name: rsync_name.unwrap_or_else(|| "rsync".to_owned()),
             show_progress: stdout().is_terminal(),
         }
     }

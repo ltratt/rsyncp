@@ -29,13 +29,15 @@ identifies this command. If you use multiple different `rsync` invocations,
 `rsyncp` has the following command-line format:
 
 ```
-rsyncp [-h] [-i] [-x <str> [...-x <str>] | -c <cookie>] -- <rsync_arg_1> [... <rsync_arg_n>]
+rsyncp [-h] [-c <cookie> | -x <str> [...-x <str>]] [-i] [-r <rsync_name>] -- <rsync_arg_1> [... <rsync_arg_n>]
 ```
 
 where:
 
-* `-i` prints out version number info (etc.) and then immediately exits.
 * `-c` and `-x` control cookie construction. These two flags are mutually exclusive.
+  See [cookie construction](#cookie_construction) for more details.
+* `-i` prints out version number info (etc.) and then immediately exits.
+* `-r` specifies the name of the rsync binary. Defaults to `rsync`.
 
 
 ## Cookie construction
