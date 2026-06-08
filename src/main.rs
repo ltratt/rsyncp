@@ -240,7 +240,7 @@ impl Runner {
                         // to a seemingly sane gradual decrease in the ETA followed by a brief
                         // uptick. There isn't much we can do about that.
                         rhs = Some(format!(
-                            "   0% {}",
+                            "  0% {}",
                             eta::eta_string(
                                 Duration::from_secs(prev_elapsed).saturating_sub(elapsed)
                             )
