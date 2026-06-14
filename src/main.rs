@@ -226,7 +226,7 @@ impl Runner {
                             rhs = Some(format!(
                                 "{:>3}% {}",
                                 paths_done.saturating_mul(100).div_ceil(paths_known),
-                                eta::eta_string(x),
+                                eta::time_remaining(x),
                             ));
                         }
                     } else if let Some(prev_elapsed) = prev_elapsed {
@@ -237,7 +237,7 @@ impl Runner {
                         // uptick. There isn't much we can do about that.
                         rhs = Some(format!(
                             "  0% {}",
-                            eta::eta_string(
+                            eta::time_remaining(
                                 Duration::from_secs(prev_elapsed).saturating_sub(elapsed)
                             )
                         ));
