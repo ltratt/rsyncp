@@ -3,7 +3,7 @@
 .Os
 .Sh NAME
 .Nm rsyncp
-.Nd ETA wrapper for rsync
+.Nd Progress wrapper for rsync
 .Sh SYNOPSIS
 .Nm rsyncp
 .Oo
@@ -21,14 +21,15 @@
 wraps
 .Nm rsync ,
 displaying the percentage of files completed, and an estimate of the
-remaining time, for repeated
+time remaining, for repeated
 .Nm rsync
 invocations.
 .Nm
 does this by comparing the current
 .Nm rsync
 run to the previous run.
-By definition, percentages and ETAs only appear from the second run onwards.
+By definition, percentages and time remaining only appear from the second run
+onwards.
 In addition,
 .Nm
 shows the files sent (green) to and deleted on (red) the destination.
@@ -54,7 +55,7 @@ If you use multiple different
 .Nm rsync
 invocations,
 .Nm
-treats them distinctly, giving appropriate ETAs for each.
+treats them distinctly, giving appropriate time estimates for each.
 .Pp
 The options are as follows:
 .Bl -tag -width Ds
@@ -125,8 +126,8 @@ forget all previous runs.
 estimates progress from the number of files
 .Nm rsync
 reports it has to check.
-This means that the ETA is only accurate when repeated invocations have similar
-file counts and similar per-file checking costs.
+This means that the time remaining is only accurate when repeated invocations
+have similar file counts and similar per-file checking costs.
 .Sh SEE ALSO
 .Nm rsync
 .Sh AUTHORS

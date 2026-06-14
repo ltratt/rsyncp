@@ -29,10 +29,10 @@ use unicode_width::UnicodeWidthStr;
 
 const RSYNCP_DIR_NAME: &str = "rsyncp";
 
-/// The minimum / maximum ETA window time, in seconds. We adjust the window somewhat based on the
-/// previous run's elapsed time, but clamped to these two values.
-const MIN_ETA_WINDOW: u64 = 8;
-const MAX_ETA_WINDOW: u64 = 30;
+/// The minimum / maximum smoothing window time, in seconds. We adjust the window somewhat based on
+/// the previous run's elapsed time, but clamped to these two values.
+const MIN_SMOOTHING_WINDOW: u64 = 8;
+const MAX_SMOOTHING_WINDOW: u64 = 30;
 
 /// The size of the buffer to capture rsync output, in bytes. Allocating a moderately big buffer is
 /// about as cheap as allocating a small buffer
@@ -88,8 +88,11 @@ impl Runner {
             // The longer run is -- based on the previous time at least! -- the larger a smoothing
             // window tends to make sense. The `/100` is an arbitrary figure that will probably
             // need refining.
-            let window =
-                Duration::from_secs(MAX_ETA_WINDOW.min(prev_elapsed / 100).max(MIN_ETA_WINDOW));
+            let window = Duration::from_secs(
+                MAX_SMOOTHING_WINDOW
+                    .min(prev_elapsed / 100)
+                    .max(MIN_SMOOTHING_WINDOW),
+            );
             eta = Some(Eta::from_prev_run(
                 window,
                 prev_paths,
@@ -223,7 +226,7 @@ impl Runner {
                             rhs = Some(format!(
                                 "{:>3}% {}",
                                 paths_done.saturating_mul(100).div_ceil(paths_known),
-                                eta::eta_string(x),
+                                eta::time_remaining(x),
                             ));
                         }
                     } else if let Some(prev_elapsed) = prev_elapsed {
@@ -234,7 +237,7 @@ impl Runner {
                         // uptick. There isn't much we can do about that.
                         rhs = Some(format!(
                             "  0% {}",
-                            eta::eta_string(
+                            eta::time_remaining(
                                 Duration::from_secs(prev_elapsed).saturating_sub(elapsed)
                             )
                         ));

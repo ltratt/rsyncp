@@ -76,7 +76,8 @@ struct Sample {
     elapsed: Duration,
 }
 
-pub fn eta_string(d: Duration) -> String {
+/// Return `d` as a "time remaining" string.
+pub fn time_remaining(d: Duration) -> String {
     let secs = d.as_secs().saturating_add(u64::from(d.subsec_nanos() > 0));
 
     if secs >= 24 * 60 * 60 {
@@ -98,39 +99,48 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_eta_to_string() {
-        assert_eq!(eta_string(Duration::ZERO), "00:00");
+    fn test_time_remaining_to_string() {
+        assert_eq!(time_remaining(Duration::ZERO), "00:00");
 
         // HH:MM
-        assert_eq!(eta_string(Duration::from_millis(999)), "00:01");
-        assert_eq!(eta_string(Duration::from_millis(1001)), "00:02");
-        assert_eq!(eta_string(Duration::from_secs(61)), "01:01");
-        assert_eq!(eta_string(Duration::from_secs(59 * 60 + 59)), "59:59");
+        assert_eq!(time_remaining(Duration::from_millis(999)), "00:01");
+        assert_eq!(time_remaining(Duration::from_millis(1001)), "00:02");
+        assert_eq!(time_remaining(Duration::from_secs(61)), "01:01");
+        assert_eq!(time_remaining(Duration::from_secs(59 * 60 + 59)), "59:59");
 
         // Hours
-        assert_eq!(eta_string(Duration::from_secs(60 * 60 - 1)), "59:59");
-        assert_eq!(eta_string(Duration::from_secs(60 * 60)), "1.0 hours");
+        assert_eq!(time_remaining(Duration::from_secs(60 * 60 - 1)), "59:59");
+        assert_eq!(time_remaining(Duration::from_secs(60 * 60)), "1.0 hours");
         assert_eq!(
-            eta_string(Duration::from_secs(60 * 60 - 1) + Duration::from_nanos(1)),
+            time_remaining(Duration::from_secs(60 * 60 - 1) + Duration::from_nanos(1)),
             "1.0 hours"
         );
-        assert_eq!(eta_string(Duration::from_secs(90 * 60)), "1.5 hours");
+        assert_eq!(time_remaining(Duration::from_secs(90 * 60)), "1.5 hours");
         assert_eq!(
-            eta_string(Duration::from_secs(23 * 60 * 60 + 30 * 60)),
+            time_remaining(Duration::from_secs(23 * 60 * 60 + 30 * 60)),
             "23.5 hours"
         );
         assert_eq!(
-            eta_string(Duration::from_secs(24 * 60 * 60 - 1)),
+            time_remaining(Duration::from_secs(24 * 60 * 60 - 1)),
             "24.0 hours"
         );
 
         // Days
-        assert_eq!(eta_string(Duration::from_secs(24 * 60 * 60)), "1.0 days");
         assert_eq!(
-            eta_string(Duration::from_secs(24 * 60 * 60 - 1) + Duration::from_nanos(1)),
+            time_remaining(Duration::from_secs(24 * 60 * 60)),
             "1.0 days"
         );
-        assert_eq!(eta_string(Duration::from_secs(30 * 60 * 60)), "1.2 days");
-        assert_eq!(eta_string(Duration::from_secs(48 * 60 * 60)), "2.0 days");
+        assert_eq!(
+            time_remaining(Duration::from_secs(24 * 60 * 60 - 1) + Duration::from_nanos(1)),
+            "1.0 days"
+        );
+        assert_eq!(
+            time_remaining(Duration::from_secs(30 * 60 * 60)),
+            "1.2 days"
+        );
+        assert_eq!(
+            time_remaining(Duration::from_secs(48 * 60 * 60)),
+            "2.0 days"
+        );
     }
 }
