@@ -160,16 +160,9 @@ impl Runner {
                 child.kill().ok();
                 child.wait().ok();
                 return Err(format!("poll failed: {}", err).into());
-            } else if r == 1 && pollfd.revents & POLLIN != 0 {
+            } else if r == 1 && pollfd.revents & (POLLIN | POLLHUP) != 0 {
                 match stdout.read(&mut buf) {
-                    Ok(0) => {
-                        // We adapt the suggestion from
-                        // https://www.greenend.org.uk/rjk/tech/poll.html for "is this
-                        // descriptor finished?"
-                        if pollfd.revents & POLLHUP != 0 {
-                            break 'a;
-                        }
-                    }
+                    Ok(0) => break 'a,
                     Ok(i) => {
                         let (seen_name, seen_progress) =
                             self.parse_rsync(&buf[..i], &mut sent, &mut deleted);
